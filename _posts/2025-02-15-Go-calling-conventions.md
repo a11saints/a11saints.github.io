@@ -83,8 +83,10 @@ All `g`, `m`, and `p` objects are heap allocated, but are never freed, so their 
 - `getg()` - returns the current `g`, but when executing on the system or signal stacks, this will return the current M’s “g0” or “gsignal”, respectively
 - `getg() == getg().m.curg` - to determine if you’re running on the user stack or the system stack.
 
-![[1_ts4May4b6Oqt_N2JAEBXCQ 1.webp]]
-## CGO / C —> Go
+![figure](/assets/img/2025-02-15-Go-calling-conventions/1_ts4May4b6Oqt_N2JAEBXCQ 1.webp)
+
+## CGO callback / Go —> C
+
 If gcc compiled function f callling back to Go this is what happens next. To make it possible for gcc-compiled C code to call a Go function `p.GoF`,  cgo writes a gcc-compiled function named `GoF`  (not `p.GoF`, since gcc doesn't know about packages) which acts like a bridge.  This `GoF` function is written in C and is an intermediary between the C code and the Go runtime. The gcc-compiled C function f calls `GoF`. `GoF` initializes "frame", a structure containing all of its arguments and slots for `p.GoF`'s results. It calls `crosscall2 (_cgoexp_GoF, frame, framesize, ctxt)` using the `gcc ABI`.
 
 ### crosscall2
@@ -255,7 +257,8 @@ runtime.crosscall2()
 	runtime.cgocallback()	
 		runtime.cgocallbackg()	
 			\_cgoexp_GoF()
-## CGO callback / Go —> C
+
+## CGO / C —> Go
 Before you read this section, check out this cool [article](https://leandrofroes.github.io/posts/An-in-depth-look-at-Golang-Windows-calls/) related to CGO internals, that covers topic on WinAPI functions' address resolution. The author also explains cgocalls and asmcgocall function internal structure. I've started reversing Go internal without knowing inbeforehand about this article, so some things might overlap, anyways feel free to add your remarks and comments. Whenever GO calls C functions it invokes `stdcall` function from the runtime package. `stdcall` function itself has internal mechanisms. Internal it includes the following chain of functions that is called in consecutive order.
 
 [package] runtime.
