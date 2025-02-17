@@ -147,12 +147,12 @@ Parameters for `crosscall2` function call passed via `rcx`, `rdx`, `r8d`, `r9`. 
 ![figure](/assets/img/2025-02-15-Go-calling-conventions/Pasted image 20250213204813.png)
 
 
-Moving futher inside the crosscall2, we see call to `cgocallback` which uses the same arguments we passed before into `crosscall2` but this time `gc ABI `is used.  
+Moving futher inside the crosscall2, we see call to `cgocallback` which uses the same arguments we passed before into `crosscall2` but this time `__cdecl` is used. Look how caller cleans up the stack.  
 
 ![figure](/assets/img/2025-02-15-Go-calling-conventions/Pasted image 20250213205845.png)
 
-The problem here is that IDA by default cant recognize `gc ABI` so custom calling convention `__usercall` must be set.
-```c
+Here we can explicitly make function see arguments passed via stack, by setting our `__usercall`.
+```
 void __usercall runtime_cgocallback (
   __int64 *cgoexp_GoF@<0:^0.8>, 
   void *frame@<0:^8.8>,
@@ -179,8 +179,7 @@ void __usercall runtime_cgocallbackg_0 (
 ![figure](/assets/img/2025-02-15-Go-calling-conventions/Pasted image 20250213214830.png)
 
 ### cgocallbackg
-Now code of this function is executed on a real goroutine stack (not `m.g0`). This function mostly responsible for ensuring stack unwindling ( `m.g0.sched.sp`) if panic occurs. Also it calls `runtime.entersyscall` function that  ensures that $GOMAXPROCS is not exceeded by blocking execution.
-Then it calls `_cgoexp_GoF(frame)`.
+Now code of this function is executed on a real goroutine stack (not `m.g0`). This function mostly responsible for ensuring stack unwindling ( `m.g0.sched.sp`) if panic occurs. Also it calls `runtime.entersyscall` function that  ensures that $GOMAXPROCS is not exceeded by blocking execution. In addition, this function usses `gc ABI` meaning that `__golang` is used. Then it calls `_cgoexp_GoF(frame)`.
 ```c
 void __usercall runtime_cgocallbackg(
   void (*fn)(void *)@<rax>, 
@@ -188,7 +187,7 @@ void __usercall runtime_cgocallbackg(
   unsigned __int64 ctxt@<rcx>
   );
 ```
- For some reason IDA refuses to recognize `__golang` convention. Setting `__golang` does not automatically comment argumetns passed into function. Thats why again we set custom defined `__usercall` 
+ For some reason IDA refuses to recognize `__golang` convention. Setting it does not automatically comment argumetns passed into function. Thats why again we set custom defined `__usercall` 
 
 ![figure](/assets/img/2025-02-15-Go-calling-conventions/Pasted image 20250214220607.png)
 
@@ -404,8 +403,9 @@ asmcgocall IDA view
 ![figure](/assets/img/2025-02-15-Go-calling-conventions/Pasted image 20250213002503.png)
 
 ## A few more examples
+#### Example 1
 
-By default IDA cant recognize GO function arguments so it just skips them. For  example , decompiled go functionby Ida:
+By default IDA can't recognize Go function arguments so it just skips them. For  example, decompiled Go function:
 ```c
 __int64 __fastcall fn_1() // no parameters
 ```
@@ -428,36 +428,21 @@ void __usercall fn_2( __int64 a1@<rdi>, __int64 a2@<rsi>);
 void __usercall fn_3(__int64 r1@<rax>,__int64 r2@<rbx>, __int64 r3@<rcx>, __int64 r4@<rdi>);
 ```
 
-#### Example 1
-How it looks in IDA:
-
-![figure](/assets/img/2025-02-15-Go-calling-conventions/Pasted image 20250131165919.png)
-
-IDA function prototype for setting custom calling convention:
-``` c
- __void __usercall fn (__mm128 a@<xmm15>, __int64 a@<rdi>)
-```
-
-The function disassembly:
-```nasm
-movups  xmmword ptr [rsp+60h], xmm15
-lea     rdi, [rsp+68h]
-lea     rdi, [rdi-30h]
-nop     word ptr [rax+rax+00000000h]
-nop     dword ptr [rax+rax+00000000h]
-mov     [rsp-10h], rbp
-lea     rbp, [rsp-10h]
-call    fn
-```
-
 #### Example 2
 How it looks in IDA:
 
-![figure](/assets/img/2025-02-15-Go-calling-conventions/Pasted image 20250131173741.png)
+![figure](/assets/img/2025-02-15-Go-calling-conventions/copy_func_call.png)
+
+Function signature:
+```c
+void __usercall sub_65F5C5BA(__int64 dst@<rdi>, __int64 src@<rsi>);
+```
 
 Function actually just copies 80 bytes ( 5 x 16 )from rsi to rdi pointers:
 
-![figure](/assets/img/2025-02-15-Go-calling-conventions/Pasted image 20250131173930.png)
+![figure](/assets/img/2025-02-15-Go-calling-conventions/copy_func_asm.png)
+
+
 
 ## Resources
 - https://go.dev/src/runtime/HACKING
